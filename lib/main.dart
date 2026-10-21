@@ -199,7 +199,6 @@ class RequestRecordsPage extends StatelessWidget {
         ? const Stream<QuerySnapshot<Map<String, dynamic>>>.empty()
         : FirebaseFirestore.instance
               .collection('campusRequests')
-              .orderBy('createdAt', descending: true)
               .snapshots();
     return Scaffold(
       appBar: AppBar(
@@ -224,7 +223,13 @@ class RequestRecordsPage extends StatelessWidget {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-          final docs = snapshot.data?.docs ?? const [];
+          final docs = [...(snapshot.data?.docs ?? const [])]
+            ..sort((a, b) {
+              final aDate = (a.data()['createdAt'] as Timestamp?)?.toDate();
+              final bDate = (b.data()['createdAt'] as Timestamp?)?.toDate();
+              return (bDate ?? DateTime.fromMillisecondsSinceEpoch(0))
+                  .compareTo(aDate ?? DateTime.fromMillisecondsSinceEpoch(0));
+            });
           if (docs.isEmpty)
             return const Center(child: Text('No saved requests yet.'));
           return ListView.separated(
