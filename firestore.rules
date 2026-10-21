@@ -38,7 +38,9 @@ service cloud.firestore {
             || d.get('location', '').size() > 0);
       }
       allow create: if request.auth != null && validRequest();
-      allow read: if request.auth != null && resource.data.ownerUid == request.auth.uid;
+      // Request Records is a shared campus dashboard: authenticated users can
+      // view submitted requests, while writes remain owner-validated above.
+      allow read: if request.auth != null;
       allow update, delete: if false;
     }
   }

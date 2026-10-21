@@ -199,7 +199,6 @@ class RequestRecordsPage extends StatelessWidget {
         ? const Stream<QuerySnapshot<Map<String, dynamic>>>.empty()
         : FirebaseFirestore.instance
               .collection('campusRequests')
-              .where('ownerUid', isEqualTo: user.uid)
               .orderBy('createdAt', descending: true)
               .snapshots();
     return Scaffold(
