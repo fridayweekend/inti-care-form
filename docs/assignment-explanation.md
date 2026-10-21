@@ -1,14 +1,18 @@
 # INTI Care customization explanation
 
-INTI Care is a campus service request app designed to make student support approachable. I used INTI red, a dark navy sidebar, pale input backgrounds and green success feedback. The form groups student details, request information, contact preferences and confirmation into four numbered sections. It validates full names, a fictional INTI student ID format, email addresses, phone numbers and request lengths. Students choose from six services, three urgency levels and two contact methods. The preferred date cannot be in the past, and the declaration must be accepted. My three advanced customizations are a conditional building or room field, a live description character counter and a reusable CampusTextField widget. A submission dialog also presents the saved details and a reference number. Reset clears every field and selection. The responsive layout supports mobile and desktop screens, while submissions remain simulated.
+INTI Care helps students submit campus service requests through a clear, responsive form. I chose red for the main actions, navy for navigation, pale field backgrounds and green for confirmation. Four sections organize student details, request information, contact preferences and consent. Validation checks names, fictional student IDs, email addresses, phone numbers, request lengths and dates. Students select one of six campus services, three urgency levels and two contact methods. My three advanced customizations are a conditional building or room field, a live description character counter and a reusable CampusTextField widget. Firebase anonymous authentication associates each request with its owner. The app shows success only after Firestore confirms the write, then retrieves the saved record from the server. Reset clears the form without deleting the stored request.
 
-## Screenshot evidence
+## Planning worksheet
 
-- 01-desktop.png: app identity, colors, field grouping and desktop layout.
-- 02-mobile.png: narrow-screen layout and student fields.
-- 03-validation.png: specific field-level errors after unsuccessful submission.
-- 04-request-details.png: conditional location field and live character counter. Reusable CampusTextField is implemented in lib/main.dart.
-- 05-confirmation.png: date preference, declaration and actions.
-- 06-success.png: simulated successful submission and saved summary.
+| Item | Decision |
+| --- | --- |
+| App and form | INTI Care, campus service request |
+| Primary and accent | Red #BD1830, green #237564 |
+| Field fill and text | #F8F9FC, navy #202C3D |
+| Services | IT & Wi-Fi, Facilities & maintenance, Library services, Accommodation, Academic advice, Student activities |
+| Contact | Email or Phone call |
+| Date | Today or a future preferred response date |
+| Confirmation | Server acknowledgement, reference and retrieval summary |
+| Three advanced choices | Conditional location, live counter, reusable CampusTextField |
 
-The sample student and ID convention are fictional. Add your own name, student ID and class to your submission cover sheet as required by your lecturer.
+Add your name, student ID, class and submission date to the assignment cover sheet. See firebase-implementation.md for the schema, setup and live evidence checklist.

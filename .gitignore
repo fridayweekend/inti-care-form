@@ -5,3 +5,5 @@ coverage/
 *.iml
 *.bak
 .flutter-plugins-dependencies
+.tools/
+*-debug.log

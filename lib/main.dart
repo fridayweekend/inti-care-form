@@ -1,7 +1,52 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+import 'request_store.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-void main() => runApp(const IntiCareApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    // Web persistence retains queued writes; only acknowledged writes show success.
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+    );
+    runApp(const IntiCareApp());
+  } catch (_) {
+    runApp(
+      MaterialApp(
+        home: Scaffold(
+          body: SafeArea(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.cloud_off, size: 48),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Unable to initialize Firebase. Check your connection '
+                      'and run the configured web app with flutter run -d chrome.',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton(onPressed: main, child: const Text('Retry')),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 const primary = Color(0xFFBD1830);
 const ink = Color(0xFF202C3D);
@@ -10,7 +55,8 @@ const accent = Color(0xFF237564);
 const fieldFill = Color(0xFFF8F9FC);
 
 class IntiCareApp extends StatelessWidget {
-  const IntiCareApp({super.key});
+  const IntiCareApp({super.key, this.store});
+  final RequestStore? store;
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'INTI Care | Student services',
@@ -82,7 +128,7 @@ class IntiCareApp extends StatelessWidget {
         behavior: SnackBarBehavior.floating,
       ),
     ),
-    home: const CampusRequestPage(),
+    home: CampusRequestPage(store: store),
   );
 }
 
@@ -137,9 +183,95 @@ class CampusValidators {
 }
 
 class CampusRequestPage extends StatefulWidget {
-  const CampusRequestPage({super.key});
+  const CampusRequestPage({super.key, this.store});
+  final RequestStore? store;
   @override
   State<CampusRequestPage> createState() => _CampusRequestPageState();
+}
+
+class RequestRecordsPage extends StatelessWidget {
+  const RequestRecordsPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    final stream = user == null
+        ? const Stream<QuerySnapshot<Map<String, dynamic>>>.empty()
+        : FirebaseFirestore.instance
+              .collection('campusRequests')
+              .where('ownerUid', isEqualTo: user.uid)
+              .orderBy('createdAt', descending: true)
+              .snapshots();
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Request Records'),
+        actions: [
+          IconButton(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.close),
+          ),
+        ],
+      ),
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: stream,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                'Unable to load records. Check your connection.\n${snapshot.error}',
+              ),
+            );
+          }
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final docs = snapshot.data?.docs ?? const [];
+          if (docs.isEmpty)
+            return const Center(child: Text('No saved requests yet.'));
+          return ListView.separated(
+            padding: const EdgeInsets.all(20),
+            itemCount: docs.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final doc = docs[index];
+              final d = doc.data();
+              final date = (d['preferredDate'] as Timestamp?)?.toDate();
+              return Card(
+                child: ListTile(
+                  leading: const CircleAvatar(
+                    child: Icon(Icons.receipt_long_outlined),
+                  ),
+                  title: Text(d['subject'] as String? ?? 'Untitled request'),
+                  subtitle: Text(
+                    '${d['studentName'] ?? 'Student'} • ${d['serviceCategory'] ?? 'Service'}\n${date ?? 'Date pending'}',
+                  ),
+                  isThreeLine: true,
+                  trailing: Chip(
+                    label: Text(d['status'] as String? ?? 'submitted'),
+                  ),
+                  onTap: () => showDialog<void>(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      title: const Text('Request details'),
+                      content: SelectableText(
+                        'Reference: ${doc.id}\nSubject: ${d['subject']}\nService: ${d['serviceCategory']}\nUrgency: ${d['urgency']}\nStatus: ${d['status']}\nPreferred date: $date',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Close'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
 }
 
 class _CampusRequestPageState extends State<CampusRequestPage> {
@@ -165,6 +297,86 @@ class _CampusRequestPageState extends State<CampusRequestPage> {
   DateTime? date;
   bool declaration = false;
   bool submitted = false;
+  late final RequestStore store;
+  bool busy = false, confirmed = false, restoring = true;
+  String? reference;
+  String status = '';
+
+  @override
+  void initState() {
+    super.initState();
+    store = widget.store ?? FirebaseRequestStore();
+    restore();
+  }
+
+  Future<void> restore() async {
+    try {
+      final id = await store.restoreReference();
+      if (!mounted) return;
+      setState(() {
+        reference = id;
+        restoring = false;
+        if (id != null) {
+          status =
+              'Previous reference: $id. Retrieve it before starting a new request.';
+        }
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          status =
+              'Could not restore the local reference. Reload before submitting.';
+        });
+      }
+    }
+  }
+
+  Future<void> retrieve() async {
+    if (reference == null || busy) return;
+    setState(() => busy = true);
+    try {
+      final data = await store.load(reference!);
+      if (!mounted) return;
+      if (data == null) {
+        setState(
+          () => status =
+              'No server record found for $reference. It may still be pending in another tab. Keep the reference and do not create a duplicate.',
+        );
+      } else {
+        setState(() {
+          confirmed = true;
+          status = 'Server retrieval confirmed: $reference';
+        });
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Request retrieved from server'),
+            content: SingleChildScrollView(
+              child: SelectableText(
+                'Reference: $reference\nSubject: ${data['subject']}\nService: ${data['serviceCategory']}\nStatus: ${data['status']}\nPreferred date: ${(data['preferredDate'] as Timestamp).toDate()}',
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => status =
+              'Retrieval failed. The request may already be saved. Check connectivity and use the original account, then retry retrieval.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
   int formVersion = 0;
   final saved = <String, String>{};
   static const categories = [
@@ -205,7 +417,12 @@ class _CampusRequestPageState extends State<CampusRequestPage> {
   }
 
   // Reset both registered form fields and state held outside FormField.
-  void reset({bool feedback = true}) {
+  Future<void> reset({bool feedback = true}) async {
+    // A saved reference belongs to the previous request. Clearing the local
+    // pointer starts a new request; it never deletes the Firestore record.
+    if (busy || restoring) return;
+    await store.clearPending();
+    if (!mounted) return;
     FocusScope.of(context).unfocus();
     formKey.currentState?.reset();
     for (final controller in controllers.values) {
@@ -217,6 +434,9 @@ class _CampusRequestPageState extends State<CampusRequestPage> {
       declaration = false;
       submitted = false;
       saved.clear();
+      reference = null;
+      confirmed = false;
+      status = '';
       formVersion++;
     });
     scroll.animateTo(
@@ -264,6 +484,7 @@ class _CampusRequestPageState extends State<CampusRequestPage> {
   }
 
   Future<void> submit() async {
+    if (busy || restoring) return;
     FocusScope.of(context).unfocus();
     setState(() => submitted = true);
     // Save is deliberately unreachable until every validator has passed.
@@ -274,14 +495,61 @@ class _CampusRequestPageState extends State<CampusRequestPage> {
     }
     saved.clear();
     formKey.currentState!.save();
-    final reference =
-        'CARE-${DateTime.now().microsecondsSinceEpoch.toRadixString(36).toUpperCase()}';
+    if (reference != null) await store.startNewRequest();
+    setState(() {
+      busy = true;
+      status =
+          'Signing in / saving — pending sync. Keep this tab open until server confirmation.';
+    });
+    try {
+      reference = await store.create({
+        'studentName': saved['Full name'],
+        'studentId': saved['Student ID'],
+        'email': saved['Campus email'],
+        'phone': controllers['phone']!.text.trim(),
+        'serviceCategory': category,
+        'subject': saved['Request subject'],
+        'description': controllers['details']!.text.trim(),
+        'location': needsLocation ? controllers['location']!.text.trim() : '',
+        'urgency': urgency,
+        'preferredContact': contact == 'Phone call' ? 'Phone' : 'Email',
+        'preferredDate': Timestamp.fromDate(
+          DateTime(date!.year, date!.month, date!.day, 23, 59, 59),
+        ),
+        'declaration': declaration,
+      });
+      if (!mounted) return;
+      setState(() {
+        confirmed = true;
+        busy = false;
+        status = 'Server confirmed: $reference';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      final denied =
+          error is FirebaseException &&
+          [
+            'permission-denied',
+            'unauthenticated',
+            'invalid-argument',
+          ].contains(error.code);
+      if (denied) await store.clearPending();
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        reference = store.reference;
+        status = denied
+            ? 'Write rejected. Check authentication and database rules. Your entries are retained.'
+            : 'Submission not confirmed. Entries are retained. Retrieve any retained reference before trying again.';
+      });
+      return;
+    }
     final newRequest = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
         icon: const Icon(Icons.check_circle_rounded, color: accent, size: 42),
-        title: const Text('Your request is ready'),
+        title: const Text('Your request is saved'),
         content: SizedBox(
           width: 460,
           child: SingleChildScrollView(
@@ -290,11 +558,11 @@ class _CampusRequestPageState extends State<CampusRequestPage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Text(
-                  'Demo submission complete. No request has been sent to the university.',
+                  'Firebase confirmed this teaching-prototype request. It is not sent to a university service team.',
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  reference,
+                  reference!,
                   style: const TextStyle(
                     fontWeight: FontWeight.w800,
                     color: primary,
@@ -346,13 +614,15 @@ class _CampusRequestPageState extends State<CampusRequestPage> {
             child: const Text('Back to form'),
           ),
           FilledButton(
+            key: const ValueKey('dialog-new-request-button'),
             onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('New request'),
           ),
         ],
       ),
     );
-    if (mounted && newRequest == true) reset();
+    if (mounted) await retrieve();
+    if (mounted && newRequest == true) await reset();
   }
 
   Widget textField(
@@ -400,6 +670,13 @@ class _CampusRequestPageState extends State<CampusRequestPage> {
       ),
       actions: [
         IconButton(
+          tooltip: 'Request records',
+          icon: const Icon(Icons.receipt_long_outlined),
+          onPressed: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const RequestRecordsPage())),
+        ),
+        IconButton(
           tooltip: 'About this form',
           icon: const Icon(Icons.help_outline_rounded),
           onPressed: () => showDialog<void>(
@@ -407,7 +684,7 @@ class _CampusRequestPageState extends State<CampusRequestPage> {
             builder: (context) => AlertDialog(
               title: const Text('A little help, closer to you'),
               content: const Text(
-                'This student prototype demonstrates a validated campus request form. All submissions are simulated. Entries stay on screen until Reset or refresh; nothing is stored or sent.\n\nExample student ID: INTI-2026001. Use your campus email format. For urgent safety concerns, contact your campus emergency service directly.',
+                'This student prototype demonstrates a validated campus request form. Requests are saved in Firebase. Keep this browser profile to retain your anonymous account and retrieve your request. This prototype does not contact university staff.\n\nExample student ID: INTI-2026001. Use your campus email format. For urgent safety concerns, contact your campus emergency service directly.',
               ),
               actions: [
                 TextButton(
@@ -431,297 +708,326 @@ class _CampusRequestPageState extends State<CampusRequestPage> {
             child: LayoutBuilder(
               builder: (context, bounds) {
                 final wide = bounds.maxWidth >= 900;
-                final form = Form(
-                  key: formKey,
-                  autovalidateMode: submitted
-                      ? AutovalidateMode.onUserInteraction
-                      : AutovalidateMode.disabled,
-                  child: Column(
-                    key: ValueKey(formVersion),
-                    children: [
-                      section(
-                        0,
-                        '01',
-                        'Student details',
-                        'Let us know who we are helping.',
-                        Icons.person_outline_rounded,
-                        [
-                          pair(
-                            textField(
-                              'name',
-                              'Full name *',
-                              'e.g. Alex Tan',
-                              Icons.person_outline,
-                              CampusValidators.name,
-                              maxLength: 80,
-                            ),
-                            textField(
-                              'id',
-                              'Student ID *',
-                              'INTI-2026001',
-                              Icons.badge_outlined,
-                              CampusValidators.studentId,
-                              maxLength: 12,
-                            ),
-                          ),
-                          pair(
-                            textField(
-                              'email',
-                              'Campus email *',
-                              'alex@student.example.edu',
-                              Icons.alternate_email,
-                              CampusValidators.email,
-                              keyboard: TextInputType.emailAddress,
-                              maxLength: 120,
-                            ),
-                            textField(
-                              'phone',
-                              contact == 'Phone call'
-                                  ? 'Phone number *'
-                                  : 'Phone number (optional)',
-                              '+60123456789',
-                              Icons.phone_outlined,
-                              (v) => CampusValidators.phone(
-                                v,
-                                required: contact == 'Phone call',
+                final form = AbsorbPointer(
+                  absorbing: busy || restoring,
+                  child: Form(
+                    key: formKey,
+                    autovalidateMode: submitted
+                        ? AutovalidateMode.onUserInteraction
+                        : AutovalidateMode.disabled,
+                    child: Column(
+                      key: ValueKey(formVersion),
+                      children: [
+                        section(
+                          0,
+                          '01',
+                          'Student details',
+                          'Let us know who we are helping.',
+                          Icons.person_outline_rounded,
+                          [
+                            pair(
+                              textField(
+                                'name',
+                                'Full name *',
+                                'e.g. Alex Tan',
+                                Icons.person_outline,
+                                CampusValidators.name,
+                                maxLength: 80,
                               ),
-                              keyboard: TextInputType.phone,
-                              maxLength: 16,
+                              textField(
+                                'id',
+                                'Student ID *',
+                                'INTI-2026001',
+                                Icons.badge_outlined,
+                                CampusValidators.studentId,
+                                maxLength: 12,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                      section(
-                        1,
-                        '02',
-                        'How can we help?',
-                        'Choose a service and tell us what you need.',
-                        Icons.chat_bubble_outline_rounded,
-                        [
-                          DropdownButtonFormField<String>(
-                            key: const ValueKey('category'),
-                            isExpanded: true,
-                            initialValue: category,
-                            decoration: const InputDecoration(
-                              labelText: 'Campus service *',
-                              prefixIcon: Icon(Icons.grid_view_rounded),
-                              hintText: 'Select a service',
+                            pair(
+                              textField(
+                                'email',
+                                'Campus email *',
+                                'alex@student.example.edu',
+                                Icons.alternate_email,
+                                CampusValidators.email,
+                                keyboard: TextInputType.emailAddress,
+                                maxLength: 120,
+                              ),
+                              textField(
+                                'phone',
+                                contact == 'Phone call'
+                                    ? 'Phone number *'
+                                    : 'Phone number (optional)',
+                                '+60123456789',
+                                Icons.phone_outlined,
+                                (v) => CampusValidators.phone(
+                                  v,
+                                  required: contact == 'Phone call',
+                                ),
+                                keyboard: TextInputType.phone,
+                                maxLength: 16,
+                              ),
                             ),
-                            items: categories
-                                .map(
-                                  (item) => DropdownMenuItem(
-                                    value: item,
-                                    child: Text(item),
-                                  ),
-                                )
-                                .toList(),
-                            validator: (value) => value == null
-                                ? 'Select the campus team you need.'
-                                : null,
-                            onSaved: (value) =>
-                                saved['Campus service'] = value!,
-                            onChanged: (value) => setState(() {
-                              category = value;
-                              if (!needsLocation) {
-                                controllers['location']!.clear();
-                              }
-                            }),
-                          ),
-                          const SizedBox(height: 22),
-                          // Conditional customization: only location-based teams need a room.
-                          if (needsLocation)
-                            textField(
-                              'location',
-                              'Building / room *',
-                              'e.g. Block B, room 2-14',
-                              Icons.location_on_outlined,
-                              (v) => (v ?? '').trim().isEmpty
-                                  ? 'Tell us which building or room needs attention.'
+                          ],
+                        ),
+                        section(
+                          1,
+                          '02',
+                          'How can we help?',
+                          'Choose a service and tell us what you need.',
+                          Icons.chat_bubble_outline_rounded,
+                          [
+                            DropdownButtonFormField<String>(
+                              key: const ValueKey('category'),
+                              isExpanded: true,
+                              initialValue: category,
+                              decoration: const InputDecoration(
+                                labelText: 'Campus service *',
+                                prefixIcon: Icon(Icons.grid_view_rounded),
+                                hintText: 'Select a service',
+                              ),
+                              items: categories
+                                  .map(
+                                    (item) => DropdownMenuItem(
+                                      value: item,
+                                      child: Text(item),
+                                    ),
+                                  )
+                                  .toList(),
+                              validator: (value) => value == null
+                                  ? 'Select the campus team you need.'
                                   : null,
+                              onSaved: (value) =>
+                                  saved['Campus service'] = value!,
+                              onChanged: (value) => setState(() {
+                                category = value;
+                                if (!needsLocation) {
+                                  controllers['location']!.clear();
+                                }
+                              }),
+                            ),
+                            const SizedBox(height: 22),
+                            // Conditional customization: only location-based teams need a room.
+                            if (needsLocation)
+                              textField(
+                                'location',
+                                'Building / room *',
+                                'e.g. Block B, room 2-14',
+                                Icons.location_on_outlined,
+                                (v) => (v ?? '').trim().isEmpty
+                                    ? 'Tell us which building or room needs attention.'
+                                    : null,
+                                maxLength: 80,
+                              ),
+                            textField(
+                              'subject',
+                              'Request subject *',
+                              'Give your request a short title',
+                              Icons.edit_note_rounded,
+                              CampusValidators.subject,
                               maxLength: 80,
                             ),
-                          textField(
-                            'subject',
-                            'Request subject *',
-                            'Give your request a short title',
-                            Icons.edit_note_rounded,
-                            CampusValidators.subject,
-                            maxLength: 80,
-                          ),
-                          // Flutter's built-in counter stays in sync with edits and reset.
-                          textField(
-                            'details',
-                            'Request details *',
-                            'What happened? How can our campus team help?',
-                            Icons.notes_rounded,
-                            CampusValidators.details,
-                            maxLength: 500,
-                            lines: 4,
-                            helper:
-                                '20–500 characters. Include useful details, not passwords.',
-                          ),
-                          const SizedBox(height: 4),
-                          choice(
-                            'Urgency *',
-                            ['Low', 'Normal', 'High'],
-                            urgency,
-                            (v) => setState(() => urgency = v),
-                            'Choose how urgent your request is.',
-                            'Urgency',
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'High urgency is a priority preference, not an emergency channel.',
-                            style: TextStyle(color: muted, fontSize: 12),
-                          ),
-                        ],
-                      ),
-                      section(
-                        2,
-                        '03',
-                        'Stay in touch',
-                        'Tell us how and when you prefer a response.',
-                        Icons.schedule_rounded,
-                        [
-                          choice(
-                            'Preferred contact *',
-                            ['Email', 'Phone call'],
-                            contact,
-                            (v) => setState(() => contact = v),
-                            'Choose email or a phone call.',
-                            'Preferred contact',
-                          ),
-                          const SizedBox(height: 22),
-                          FormField<DateTime>(
-                            key: dateKey,
-                            validator: CampusValidators.date,
-                            onSaved: (value) =>
-                                saved['Preferred response date'] = displayDate(
-                                  value!,
-                                ),
-                            builder: (state) => Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                InkWell(
-                                  borderRadius: BorderRadius.circular(12),
-                                  onTap: () => pickDate(state),
-                                  child: InputDecorator(
-                                    decoration: InputDecoration(
-                                      labelText: 'Preferred response date *',
-                                      prefixIcon: const Icon(
-                                        Icons.calendar_month_outlined,
+                            // Flutter's built-in counter stays in sync with edits and reset.
+                            textField(
+                              'details',
+                              'Request details *',
+                              'What happened? How can our campus team help?',
+                              Icons.notes_rounded,
+                              CampusValidators.details,
+                              maxLength: 500,
+                              lines: 4,
+                              helper:
+                                  '20–500 characters. Include useful details, not passwords.',
+                            ),
+                            const SizedBox(height: 4),
+                            choice(
+                              'Urgency *',
+                              ['Low', 'Normal', 'High'],
+                              urgency,
+                              (v) => setState(() => urgency = v),
+                              'Choose how urgent your request is.',
+                              'Urgency',
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'High urgency is a priority preference, not an emergency channel.',
+                              style: TextStyle(color: muted, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                        section(
+                          2,
+                          '03',
+                          'Stay in touch',
+                          'Tell us how and when you prefer a response.',
+                          Icons.schedule_rounded,
+                          [
+                            choice(
+                              'Preferred contact *',
+                              ['Email', 'Phone call'],
+                              contact,
+                              (v) => setState(() => contact = v),
+                              'Choose email or a phone call.',
+                              'Preferred contact',
+                            ),
+                            const SizedBox(height: 22),
+                            FormField<DateTime>(
+                              key: dateKey,
+                              validator: CampusValidators.date,
+                              onSaved: (value) =>
+                                  saved['Preferred response date'] =
+                                      displayDate(value!),
+                              builder: (state) => Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  InkWell(
+                                    borderRadius: BorderRadius.circular(12),
+                                    onTap: () => pickDate(state),
+                                    child: InputDecorator(
+                                      decoration: InputDecoration(
+                                        labelText: 'Preferred response date *',
+                                        prefixIcon: const Icon(
+                                          Icons.calendar_month_outlined,
+                                        ),
+                                        suffixIcon: const Icon(
+                                          Icons.expand_more,
+                                        ),
+                                        errorText: state.errorText,
                                       ),
-                                      suffixIcon: const Icon(Icons.expand_more),
-                                      errorText: state.errorText,
-                                    ),
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 5,
-                                      ),
-                                      child: Text(
-                                        date == null
-                                            ? 'Choose a date'
-                                            : displayDate(date!),
-                                        style: TextStyle(
-                                          color: date == null ? muted : ink,
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 5,
+                                        ),
+                                        child: Text(
+                                          date == null
+                                              ? 'Choose a date'
+                                              : displayDate(date!),
+                                          style: TextStyle(
+                                            color: date == null ? muted : ink,
+                                          ),
                                         ),
                                       ),
                                     ),
                                   ),
-                                ),
-                                const Padding(
-                                  padding: EdgeInsets.only(top: 8, left: 12),
-                                  child: Text(
-                                    'Today or later. This is a preference, not a confirmed booking.',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: muted,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      section(
-                        3,
-                        '04',
-                        'Check and send',
-                        'One final check before your request is submitted.',
-                        Icons.task_alt_rounded,
-                        [
-                          FormField<bool>(
-                            key: declarationKey,
-                            initialValue: false,
-                            validator: (value) => value == true
-                                ? null
-                                : 'Please confirm the declaration before sending.',
-                            onSaved: (value) =>
-                                saved['Declaration'] = 'Confirmed',
-                            builder: (state) => Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                CheckboxListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  controlAffinity:
-                                      ListTileControlAffinity.leading,
-                                  value: declaration,
-                                  title: const Text(
-                                    'I confirm that the information above is accurate and may be used to respond to this request.',
-                                    style: TextStyle(fontSize: 14),
-                                  ),
-                                  onChanged: (value) {
-                                    setState(
-                                      () => declaration = value ?? false,
-                                    );
-                                    state.didChange(declaration);
-                                  },
-                                ),
-                                if (state.hasError)
-                                  Padding(
-                                    padding: const EdgeInsets.only(
-                                      left: 12,
-                                      top: 6,
-                                    ),
+                                  const Padding(
+                                    padding: EdgeInsets.only(top: 8, left: 12),
                                     child: Text(
-                                      state.errorText!,
+                                      'Today or later. This is a preference, not a confirmed booking.',
                                       style: TextStyle(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.error,
                                         fontSize: 12,
+                                        color: muted,
                                       ),
                                     ),
                                   ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        section(
+                          3,
+                          '04',
+                          'Check and send',
+                          'One final check before your request is submitted.',
+                          Icons.task_alt_rounded,
+                          [
+                            FormField<bool>(
+                              key: declarationKey,
+                              initialValue: false,
+                              validator: (value) => value == true
+                                  ? null
+                                  : 'Please confirm the declaration before sending.',
+                              onSaved: (value) =>
+                                  saved['Declaration'] = 'Confirmed',
+                              builder: (state) => Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Material(
+                                    type: MaterialType.transparency,
+                                    child: CheckboxListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      controlAffinity:
+                                          ListTileControlAffinity.leading,
+                                      value: declaration,
+                                      title: const Text(
+                                        'I confirm that the information above is accurate and may be used to respond to this request.',
+                                        style: TextStyle(fontSize: 14),
+                                      ),
+                                      onChanged: (value) {
+                                        setState(
+                                          () => declaration = value ?? false,
+                                        );
+                                        state.didChange(declaration);
+                                      },
+                                    ),
+                                  ),
+                                  if (state.hasError)
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        left: 12,
+                                        top: 6,
+                                      ),
+                                      child: Text(
+                                        state.errorText!,
+                                        style: TextStyle(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.error,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 22),
+                            if (status.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                child: SelectableText(status),
+                              ),
+                            if (reference != null)
+                              TextButton(
+                                onPressed: busy ? null : retrieve,
+                                child: const Text('Retrieve saved request'),
+                              ),
+                            Wrap(
+                              spacing: 12,
+                              runSpacing: 12,
+                              children: [
+                                FilledButton.icon(
+                                  onPressed:
+                                      busy || restoring || reference != null
+                                      ? null
+                                      : submit,
+                                  icon: const Icon(Icons.arrow_forward_rounded),
+                                  label: Text(
+                                    busy ? 'Pending sync…' : 'Send request',
+                                  ),
+                                ),
+                                OutlinedButton.icon(
+                                  key: const ValueKey('new-request-button'),
+                                  onPressed: busy || restoring ? null : reset,
+                                  icon: const Icon(Icons.restart_alt_rounded),
+                                  label: Text(
+                                    reference == null
+                                        ? 'Reset form'
+                                        : 'New request',
+                                  ),
+                                ),
                               ],
                             ),
-                          ),
-                          const SizedBox(height: 22),
-                          Wrap(
-                            spacing: 12,
-                            runSpacing: 12,
-                            children: [
-                              FilledButton.icon(
-                                onPressed: submit,
-                                icon: const Icon(Icons.arrow_forward_rounded),
-                                label: const Text('Send request'),
-                              ),
-                              OutlinedButton.icon(
-                                onPressed: reset,
-                                icon: const Icon(Icons.restart_alt_rounded),
-                                label: const Text('Reset form'),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Student project · Demo submissions only · Entries clear on refresh',
-                            style: TextStyle(fontSize: 12, color: muted),
-                          ),
-                        ],
-                      ),
-                    ],
+                            const SizedBox(height: 16),
+                            const Text(
+                              'Student prototype · Use fictional data · Saved records remain in Firebase',
+                              style: TextStyle(fontSize: 12, color: muted),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 );
                 return Column(

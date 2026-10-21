@@ -1,0 +1,31 @@
+{
+  "project": "inti-care",
+  "checks": [
+    {
+      "name": "Offline write remains pending without premature acknowledgement",
+      "result": "passed"
+    },
+    {
+      "name": "Original queued write acknowledged after reconnection",
+      "result": "passed"
+    },
+    {
+      "name": "Original document ID retrieved with server timestamp",
+      "result": "passed"
+    },
+    {
+      "name": "Exactly one document exists for the test owner",
+      "result": "passed"
+    },
+    {
+      "name": "Different anonymous owner cannot read the Flutter-created request",
+      "result": "passed"
+    },
+    {
+      "name": "Live rules reject a write without declaration",
+      "result": "passed"
+    }
+  ],
+  "requestId": "ihRxhK8KMyphiayfuv9n",
+  "checkedAt": "2026-10-20T15:01:18.077Z"
+}

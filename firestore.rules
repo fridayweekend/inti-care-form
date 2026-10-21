@@ -1,0 +1,45 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /campusRequests/{requestId} {
+      function validRequest() {
+        let d = request.resource.data;
+        return d.keys().hasAll([
+          'ownerUid', 'studentName', 'studentId', 'email', 'phone',
+          'serviceCategory', 'subject', 'description', 'urgency',
+          'preferredContact', 'preferredDate', 'declaration', 'status', 'createdAt'
+        ]) && d.keys().hasOnly([
+          'ownerUid', 'studentName', 'studentId', 'email', 'phone',
+          'serviceCategory', 'subject', 'description', 'urgency',
+          'preferredContact', 'preferredDate', 'declaration', 'status', 'createdAt',
+          'location'
+        ])
+        && d.ownerUid == request.auth.uid
+        && d.studentName is string && d.studentName.size() >= 3 && d.studentName.size() <= 80
+        && d.studentName.matches('.* .*')
+        && d.studentId is string && d.studentId.matches('INTI-[0-9]{7}')
+        && d.email is string && d.email.size() <= 150
+        && d.email.matches('[^ @]+@[^ @]+[.][^ @]+')
+        && d.phone is string && (d.phone == '' || d.phone.matches('[+]?[0-9]{9,15}'))
+        && d.serviceCategory in ['IT & Wi-Fi', 'Facilities & maintenance', 'Library services',
+          'Accommodation', 'Academic advice', 'Student activities']
+        && d.subject is string && d.subject.size() >= 5 && d.subject.size() <= 100
+        && d.description is string && d.description.size() >= 20 && d.description.size() <= 500
+        && d.urgency in ['Low', 'Normal', 'High']
+        && d.preferredContact in ['Email', 'Phone']
+        && (d.preferredContact != 'Phone' || d.phone.size() > 0)
+        && d.preferredDate is timestamp
+        && d.preferredDate >= request.time
+        && d.declaration == true
+        && d.status == 'submitted'
+        && d.createdAt == request.time
+        && d.get('location', '') is string && d.get('location', '').size() <= 100
+        && (!(d.serviceCategory in ['Facilities & maintenance', 'Accommodation'])
+            || d.get('location', '').size() > 0);
+      }
+      allow create: if request.auth != null && validRequest();
+      allow read: if request.auth != null && resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+  }
+}

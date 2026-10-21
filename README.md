@@ -1,52 +1,41 @@
 # INTI Care
 
-A new Flutter campus service request app for the Form Widget assignment. The app uses fictional sample details and simulates submissions; it does not contact INTI or store requests. GitHub publication is deferred.
+A Flutter campus service request app for the Form Widget and Firebase assignment.
+Uses fictional student data, anonymous authentication and Cloud Firestore.
 
 ## Run
-
-Open this project folder in a terminal:
 
 ```powershell
 flutter pub get
 flutter run -d chrome
 ```
 
-Or double-click `run-app.bat` on a computer with Flutter installed. The project includes the web target. For Android or other platforms, generate the appropriate runner using Flutter before building for that platform.
+Web is configured for Firebase project `inti-care`, app `INTI Care Web`.
+Anonymous sign-in is enabled and the tested `firestore.rules` are published.
+See [Firebase implementation](docs/firebase-implementation.md) for schema,
+setup, restart recovery and live evidence requirements.
 
-## Try a valid request
+## Valid sample
 
-1. Full name: Alex Tan
-2. Student ID: INTI-2026001 (a fictional project convention)
-3. Campus email: alex@student.example.edu (a fictional example domain; other valid email domains are accepted)
-4. Leave phone blank for email contact, or enter +60123456789 for phone contact.
-5. Choose Facilities & maintenance and enter Block B, room 2-14.
-6. Subject: Study room lighting
-7. Details: The main light in the study room is flickering during evening sessions. Please arrange a check.
-8. Choose an urgency level, contact method, and today or a future date.
-9. Select the declaration and press Send request.
-10. Inspect the saved summary. Back to form preserves your values; New request resets everything.
+Name: Alex Tan. ID: INTI-2026001. Email: alex@student.example.edu.
+Choose Facilities & maintenance, location Block B room 2-14, subject Study room
+lighting, and details The main light in the study room is flickering during evening sessions.
+Select Normal urgency, Email contact, today or a future date, and accept the declaration.
+Send request waits for server acknowledgement. The dialog shows the real document
+ID. Closing it retrieves the saved record. Reset begins a new request and preserves
+the database document. This prototype does not contact university staff.
 
-## Assignment mapping
+## Requirement coverage
 
-| Requirement | Implementation |
-| --- | --- |
-| Form, GlobalKey and state | CampusRequestPage with one persistent GlobalKey<FormState> |
-| Text fields | Name, student ID, email, phone, subject, details; conditional building/room field |
-| At least five services | Six campus service categories |
-| Multiple input controls | TextFormField, DropdownButtonFormField, ChoiceChip, date picker, checkbox |
-| Validation | Full name, ID convention, email structure, phone digits, subject length, 20–500 character description, required selections, non-past date, declaration |
-| Conditional phone | Phone number becomes required when Phone call is selected |
-| Form lifecycle | validate before save; onSaved builds the summary; reset clears FormField and external state |
-| Feedback | Field-level errors, SnackBar, saved submission summary with reference |
-| Accessibility | Floating labels, text errors, responsive rows, keyboard actions, scrollable body, large-text checks |
-| Customization | INTI Care identity, red primary, green success/accent, pale field fill, dark sidebar, campus assets |
-| Advanced option 1 | Conditional location field for Facilities and Accommodation |
-| Advanced option 2 | Live 500-character description counter |
-| Advanced option 3 | Reusable CampusTextField widget |
-| Additional advanced option | Submission summary dialog |
-| Explanation and screenshots | docs/assignment-explanation.md and docs/screenshots/ |
-
-The form does not retain entries after browser refresh. Preferred dates do not reserve appointments. Urgency levels do not notify an emergency service.
+- GlobalKey<FormState>, validate before save, onSaved, complete reset.
+- Six text fields plus conditional location; six service categories.
+- Dropdown, chips, date picker, checkbox and field-level errors.
+- Scrollable responsive layout, appropriate keyboards, visible labels.
+- Three advanced customizations: conditional location, live counter, reusable field.
+- Firebase startup error screen, anonymous owner, auto document ID, server time.
+- Pending/success/error states; duplicate prevention; server-only retrieval.
+- Local retained ID for retrieval after restart under the same account.
+- Owner-only create/read rules, updates and deletes blocked.
 
 ## Verification
 
@@ -56,8 +45,18 @@ flutter test
 flutter build web --release
 ```
 
-The tests cover validator boundaries, invalid submissions preserving data, successful saving, new-request and reset behavior, conditional fields, and 320/390/1440-pixel layouts with keyboard insets and larger text.
+For local security tests (requires Node and Java supported by Firebase CLI):
 
-## Hosting later
+```powershell
+npm install --prefix .tools firebase-tools @firebase/rules-unit-testing firebase
+.\.tools\node_modules\.bin\firebase.cmd emulators:exec --only firestore --project demo-inti-care "node test/firestore_rules.cjs"
+```
 
-This is a web-ready Flutter project. GitHub repository creation, workflow configuration and publication have not been performed. A future GitHub Pages build must use the base path matching the final repository name.
+See [test results](docs/test-results.md). Tests use a fake store for widget states
+and a real local Firestore emulator for rules; neither is live-project evidence.
+See [customization explanation](docs/assignment-explanation.md) for the required
+100–150 word explanation and planning decisions.
+
+Live Firebase screenshots are in docs/firebase-evidence/. Older docs/screenshots images depict simulated submissions and are excluded from the submission ZIP. Do not package build/, .tools/,
+.dart_tool/, debug logs, passwords or service-account keys.
+
