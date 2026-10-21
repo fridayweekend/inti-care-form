@@ -668,6 +668,17 @@ class _CampusRequestPageState extends State<CampusRequestPage> {
         ],
       ),
       actions: [
+        TextButton.icon(
+          style: TextButton.styleFrom(
+            foregroundColor: accent,
+            textStyle: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          icon: const Icon(Icons.receipt_long_outlined),
+          label: const Text('Request records'),
+          onPressed: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const RequestRecordsPage())),
+        ),
         IconButton(
           tooltip: 'Request records',
           icon: const Icon(Icons.receipt_long_outlined),
