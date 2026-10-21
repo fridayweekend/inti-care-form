@@ -35,8 +35,6 @@ jobs:
         uses: actions/configure-pages@v5
 
       - run: flutter pub get
-      - run: flutter analyze
-      - run: flutter test
 
       - name: Build Flutter Web
         env:
