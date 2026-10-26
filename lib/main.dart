@@ -283,7 +283,12 @@ class _RequestRecordsPageState extends State<RequestRecordsPage> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
                 child: TextField(
+                  key: const ValueKey('records-search-field'),
                   controller: searchController,
+                  enabled: true,
+                  readOnly: false,
+                  keyboardType: TextInputType.text,
+                  textInputAction: TextInputAction.search,
                   autofocus: false,
                   decoration: const InputDecoration(
                     labelText: 'Search requests',
