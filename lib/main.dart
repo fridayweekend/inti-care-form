@@ -411,40 +411,68 @@ class _RequestRecordsPageState extends State<RequestRecordsPage> {
                           ),
                           onTap: () => showDialog<void>(
                             context: context,
-                            builder: (_) => AlertDialog(
+                            builder: (_) => Dialog(
                               backgroundColor: Colors.white,
                               surfaceTintColor: Colors.white,
                               insetPadding: const EdgeInsets.symmetric(
-                                horizontal: 48,
-                                vertical: 28,
+                                horizontal: 36,
+                                vertical: 24,
                               ),
-                              title: const Text('Request details'),
-                              content: SizedBox(
-                                width: 760,
-                                child: SingleChildScrollView(
-                                  child: SelectableText(
-                                    'Reference: ${doc.id}\n'
-                                    'Student name: ${d['studentName'] ?? 'Not provided'}\n'
-                                    'Student ID: ${d['studentId'] ?? 'Not provided'}\n'
-                                    'Email: ${d['email'] ?? 'Not provided'}\n'
-                                    'Phone: ${d['phone'] ?? 'Not provided'}\n\n'
-                                    'Service: ${d['serviceCategory'] ?? 'Not provided'}\n'
-                                    'Subject: ${d['subject'] ?? 'Not provided'}\n'
-                                    'Description: ${d['description'] ?? 'Not provided'}\n'
-                                    'Location: ${d['location'] ?? 'Not provided'}\n\n'
-                                    'Preferred contact: ${d['preferredContact'] ?? 'Not provided'}\n'
-                                    'Preferred date: $date\n'
-                                    'Urgency: ${d['urgency'] ?? 'Not provided'}\n'
-                                    'Status: ${d['status'] ?? 'submitted'}',
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 980,
+                                  maxHeight: 720,
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    32,
+                                    28,
+                                    24,
+                                    16,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Request details',
+                                        style: TextStyle(
+                                          fontSize: 28,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 20),
+                                      Expanded(
+                                        child: SingleChildScrollView(
+                                          child: SelectableText(
+                                            'Reference: ${doc.id}\n'
+                                            'Student name: ${d['studentName'] ?? 'Not provided'}\n'
+                                            'Student ID: ${d['studentId'] ?? 'Not provided'}\n'
+                                            'Email: ${d['email'] ?? 'Not provided'}\n'
+                                            'Phone: ${d['phone'] ?? 'Not provided'}\n\n'
+                                            'Service: ${d['serviceCategory'] ?? 'Not provided'}\n'
+                                            'Subject: ${d['subject'] ?? 'Not provided'}\n'
+                                            'Description: ${d['description'] ?? 'Not provided'}\n'
+                                            'Location: ${d['location'] ?? 'Not provided'}\n\n'
+                                            'Preferred contact: ${d['preferredContact'] ?? 'Not provided'}\n'
+                                            'Preferred date: $date\n'
+                                            'Urgency: ${d['urgency'] ?? 'Not provided'}\n'
+                                            'Status: ${d['status'] ?? 'submitted'}',
+                                          ),
+                                        ),
+                                      ),
+                                      Align(
+                                        alignment: Alignment.centerRight,
+                                        child: TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(context),
+                                          child: const Text('Close'),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: const Text('Close'),
-                                ),
-                              ],
                             ),
                           ),
                         ),
