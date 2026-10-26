@@ -268,7 +268,7 @@ class _RequestRecordsPageState extends State<RequestRecordsPage> {
               return (bDate ?? DateTime.fromMillisecondsSinceEpoch(0))
                   .compareTo(aDate ?? DateTime.fromMillisecondsSinceEpoch(0));
             });
-          final filtered = docs.where(matches).toList();
+          final filtered = docs.where((doc) => matches(doc)).toList();
           if (docs.isEmpty)
             return const Center(child: Text('No saved requests yet.'));
           return Column(
