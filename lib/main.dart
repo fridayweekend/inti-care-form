@@ -397,8 +397,22 @@ class _RequestRecordsPageState extends State<RequestRecordsPage> {
                             context: context,
                             builder: (_) => AlertDialog(
                               title: const Text('Request details'),
-                              content: SelectableText(
-                                'Reference: ${doc.id}\nSubject: ${d['subject']}\nService: ${d['serviceCategory']}\nUrgency: ${d['urgency']}\nStatus: ${d['status']}\nPreferred date: $date',
+                              content: SingleChildScrollView(
+                                child: SelectableText(
+                                  'Reference: ${doc.id}\n'
+                                  'Student name: ${d['studentName'] ?? 'Not provided'}\n'
+                                  'Student ID: ${d['studentId'] ?? 'Not provided'}\n'
+                                  'Email: ${d['email'] ?? 'Not provided'}\n'
+                                  'Phone: ${d['phone'] ?? 'Not provided'}\n\n'
+                                  'Service: ${d['serviceCategory'] ?? 'Not provided'}\n'
+                                  'Subject: ${d['subject'] ?? 'Not provided'}\n'
+                                  'Description: ${d['description'] ?? 'Not provided'}\n'
+                                  'Location: ${d['location'] ?? 'Not provided'}\n\n'
+                                  'Preferred contact: ${d['preferredContact'] ?? 'Not provided'}\n'
+                                  'Preferred date: $date\n'
+                                  'Urgency: ${d['urgency'] ?? 'Not provided'}\n'
+                                  'Status: ${d['status'] ?? 'submitted'}',
+                                ),
                               ),
                               actions: [
                                 TextButton(
