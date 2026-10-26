@@ -296,7 +296,8 @@ class _RequestRecordsPageState extends State<RequestRecordsPage> {
                     prefixIcon: Icon(Icons.search),
                     border: OutlineInputBorder(),
                   ),
-                  onChanged: (value) => setState(() => search = value),
+                  onChanged: (value) => search = value,
+                  onSubmitted: (value) => setState(() => search = value),
                 ),
               ),
               Padding(
