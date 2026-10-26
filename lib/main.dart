@@ -189,17 +189,55 @@ class CampusRequestPage extends StatefulWidget {
   State<CampusRequestPage> createState() => _CampusRequestPageState();
 }
 
-class RequestRecordsPage extends StatelessWidget {
+class RequestRecordsPage extends StatefulWidget {
   const RequestRecordsPage({super.key});
+
+  @override
+  State<RequestRecordsPage> createState() => _RequestRecordsPageState();
+}
+
+class _RequestRecordsPageState extends State<RequestRecordsPage> {
+  String search = '';
+  String service = 'All services';
+  String urgency = 'All urgency';
+  String status = 'All status';
+  DateTime? fromDate;
+  DateTime? toDate;
+
+  Future<void> chooseDate(bool start) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: (start ? fromDate : toDate) ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2035),
+    );
+    if (picked != null)
+      setState(() => start ? fromDate = picked : toDate = picked);
+  }
+
+  bool matches(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+    final d = doc.data();
+    final text =
+        '${d['studentName']} ${d['subject']} ${d['studentId']} ${doc.id}'
+            .toLowerCase();
+    final date = (d['preferredDate'] as Timestamp?)?.toDate();
+    return (search.trim().isEmpty ||
+            text.contains(search.trim().toLowerCase())) &&
+        (service == 'All services' || d['serviceCategory'] == service) &&
+        (urgency == 'All urgency' || d['urgency'] == urgency) &&
+        (status == 'All status' || d['status'] == status) &&
+        (fromDate == null || (date != null && !date.isBefore(fromDate!))) &&
+        (toDate == null ||
+            (date != null &&
+                !date.isAfter(toDate!.add(const Duration(days: 1)))));
+  }
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     final stream = user == null
         ? const Stream<QuerySnapshot<Map<String, dynamic>>>.empty()
-        : FirebaseFirestore.instance
-              .collection('campusRequests')
-              .snapshots();
+        : FirebaseFirestore.instance.collection('campusRequests').snapshots();
     return Scaffold(
       appBar: AppBar(
         title: const Text('Request Records'),
@@ -230,52 +268,173 @@ class RequestRecordsPage extends StatelessWidget {
               return (bDate ?? DateTime.fromMillisecondsSinceEpoch(0))
                   .compareTo(aDate ?? DateTime.fromMillisecondsSinceEpoch(0));
             });
+          final filtered = docs.where(matches).toList();
           if (docs.isEmpty)
             return const Center(child: Text('No saved requests yet.'));
-          return ListView.separated(
-            padding: const EdgeInsets.all(20),
-            itemCount: docs.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final doc = docs[index];
-              final d = doc.data();
-              final date = (d['preferredDate'] as Timestamp?)?.toDate();
-              return Card(
-                child: ListTile(
-                  leading: const CircleAvatar(
-                    child: Icon(Icons.receipt_long_outlined),
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+                child: TextField(
+                  decoration: const InputDecoration(
+                    labelText: 'Search requests',
+                    hintText: 'Name, subject, ID or reference',
+                    prefixIcon: Icon(Icons.search),
+                    border: OutlineInputBorder(),
                   ),
-                  title: Text(d['subject'] as String? ?? 'Untitled request'),
-                  subtitle: Text(
-                    '${d['studentName'] ?? 'Student'} • ${d['serviceCategory'] ?? 'Service'}\n${date ?? 'Date pending'}',
-                  ),
-                  isThreeLine: true,
-                  trailing: Chip(
-                    label: Text(d['status'] as String? ?? 'submitted'),
-                  ),
-                  onTap: () => showDialog<void>(
-                    context: context,
-                    builder: (_) => AlertDialog(
-                      title: const Text('Request details'),
-                      content: SelectableText(
-                        'Reference: ${doc.id}\nSubject: ${d['subject']}\nService: ${d['serviceCategory']}\nUrgency: ${d['urgency']}\nStatus: ${d['status']}\nPreferred date: $date',
+                  onChanged: (value) => setState(() => search = value),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 6,
+                ),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _filter('Service', service, [
+                      'All services',
+                      'IT & Wi-Fi',
+                      'Facilities & maintenance',
+                      'Library services',
+                      'Accommodation',
+                      'Academic advice',
+                      'Student activities',
+                    ], (v) => setState(() => service = v)),
+                    _filter('Urgency', urgency, [
+                      'All urgency',
+                      'Low',
+                      'Normal',
+                      'High',
+                    ], (v) => setState(() => urgency = v)),
+                    _filter('Status', status, [
+                      'All status',
+                      'submitted',
+                    ], (v) => setState(() => status = v)),
+                    OutlinedButton.icon(
+                      onPressed: () => chooseDate(true),
+                      icon: const Icon(Icons.calendar_today),
+                      label: Text(
+                        fromDate == null
+                            ? 'From date'
+                            : '${fromDate!.day}/${fromDate!.month}/${fromDate!.year}',
                       ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('Close'),
-                        ),
-                      ],
                     ),
+                    OutlinedButton.icon(
+                      onPressed: () => chooseDate(false),
+                      icon: const Icon(Icons.event),
+                      label: Text(
+                        toDate == null
+                            ? 'To date'
+                            : '${toDate!.day}/${toDate!.month}/${toDate!.year}',
+                      ),
+                    ),
+                    if (search.isNotEmpty ||
+                        service != 'All services' ||
+                        urgency != 'All urgency' ||
+                        status != 'All status' ||
+                        fromDate != null ||
+                        toDate != null)
+                      TextButton.icon(
+                        onPressed: () => setState(() {
+                          search = '';
+                          service = 'All services';
+                          urgency = 'All urgency';
+                          status = 'All status';
+                          fromDate = null;
+                          toDate = null;
+                        }),
+                        icon: const Icon(Icons.clear),
+                        label: const Text('Clear filters'),
+                      ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 4,
+                ),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('${filtered.length} of ${docs.length} requests'),
+                ),
+              ),
+              if (filtered.isEmpty)
+                const Expanded(
+                  child: Center(
+                    child: Text('No requests match these filters.'),
+                  ),
+                )
+              else
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.all(20),
+                    itemCount: filtered.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final doc = filtered[index];
+                      final d = doc.data();
+                      final date = (d['preferredDate'] as Timestamp?)?.toDate();
+                      return Card(
+                        child: ListTile(
+                          leading: const CircleAvatar(
+                            child: Icon(Icons.receipt_long_outlined),
+                          ),
+                          title: Text(
+                            d['subject'] as String? ?? 'Untitled request',
+                          ),
+                          subtitle: Text(
+                            '${d['studentName'] ?? 'Student'} • ${d['serviceCategory'] ?? 'Service'}\n${date ?? 'Date pending'}',
+                          ),
+                          isThreeLine: true,
+                          trailing: Chip(
+                            label: Text(d['status'] as String? ?? 'submitted'),
+                          ),
+                          onTap: () => showDialog<void>(
+                            context: context,
+                            builder: (_) => AlertDialog(
+                              title: const Text('Request details'),
+                              content: SelectableText(
+                                'Reference: ${doc.id}\nSubject: ${d['subject']}\nService: ${d['serviceCategory']}\nUrgency: ${d['urgency']}\nStatus: ${d['status']}\nPreferred date: $date',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('Close'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
-              );
-            },
+            ],
           );
         },
       ),
     );
   }
+
+  Widget _filter(
+    String label,
+    String value,
+    List<String> options,
+    ValueChanged<String> onChanged,
+  ) => DropdownButton<String>(
+    value: value,
+    hint: Text(label),
+    items: options
+        .map((v) => DropdownMenuItem(value: v, child: Text(v)))
+        .toList(),
+    onChanged: (v) {
+      if (v != null) onChanged(v);
+    },
+  );
 }
 
 class _CampusRequestPageState extends State<CampusRequestPage> {
