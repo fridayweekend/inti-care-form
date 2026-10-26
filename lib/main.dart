@@ -197,12 +197,19 @@ class RequestRecordsPage extends StatefulWidget {
 }
 
 class _RequestRecordsPageState extends State<RequestRecordsPage> {
+  final searchController = TextEditingController();
   String search = '';
   String service = 'All services';
   String urgency = 'All urgency';
   String status = 'All status';
   DateTime? fromDate;
   DateTime? toDate;
+
+  @override
+  void dispose() {
+    searchController.dispose();
+    super.dispose();
+  }
 
   Future<void> chooseDate(bool start) async {
     final picked = await showDatePicker(
@@ -276,6 +283,8 @@ class _RequestRecordsPageState extends State<RequestRecordsPage> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
                 child: TextField(
+                  controller: searchController,
+                  autofocus: false,
                   decoration: const InputDecoration(
                     labelText: 'Search requests',
                     hintText: 'Name, subject, ID or reference',
@@ -339,6 +348,7 @@ class _RequestRecordsPageState extends State<RequestRecordsPage> {
                         toDate != null)
                       TextButton.icon(
                         onPressed: () => setState(() {
+                          searchController.clear();
                           search = '';
                           service = 'All services';
                           urgency = 'All urgency';
