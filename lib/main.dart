@@ -412,22 +412,31 @@ class _RequestRecordsPageState extends State<RequestRecordsPage> {
                           onTap: () => showDialog<void>(
                             context: context,
                             builder: (_) => AlertDialog(
+                              backgroundColor: Colors.white,
+                              surfaceTintColor: Colors.white,
+                              insetPadding: const EdgeInsets.symmetric(
+                                horizontal: 48,
+                                vertical: 28,
+                              ),
                               title: const Text('Request details'),
-                              content: SingleChildScrollView(
-                                child: SelectableText(
-                                  'Reference: ${doc.id}\n'
-                                  'Student name: ${d['studentName'] ?? 'Not provided'}\n'
-                                  'Student ID: ${d['studentId'] ?? 'Not provided'}\n'
-                                  'Email: ${d['email'] ?? 'Not provided'}\n'
-                                  'Phone: ${d['phone'] ?? 'Not provided'}\n\n'
-                                  'Service: ${d['serviceCategory'] ?? 'Not provided'}\n'
-                                  'Subject: ${d['subject'] ?? 'Not provided'}\n'
-                                  'Description: ${d['description'] ?? 'Not provided'}\n'
-                                  'Location: ${d['location'] ?? 'Not provided'}\n\n'
-                                  'Preferred contact: ${d['preferredContact'] ?? 'Not provided'}\n'
-                                  'Preferred date: $date\n'
-                                  'Urgency: ${d['urgency'] ?? 'Not provided'}\n'
-                                  'Status: ${d['status'] ?? 'submitted'}',
+                              content: SizedBox(
+                                width: 760,
+                                child: SingleChildScrollView(
+                                  child: SelectableText(
+                                    'Reference: ${doc.id}\n'
+                                    'Student name: ${d['studentName'] ?? 'Not provided'}\n'
+                                    'Student ID: ${d['studentId'] ?? 'Not provided'}\n'
+                                    'Email: ${d['email'] ?? 'Not provided'}\n'
+                                    'Phone: ${d['phone'] ?? 'Not provided'}\n\n'
+                                    'Service: ${d['serviceCategory'] ?? 'Not provided'}\n'
+                                    'Subject: ${d['subject'] ?? 'Not provided'}\n'
+                                    'Description: ${d['description'] ?? 'Not provided'}\n'
+                                    'Location: ${d['location'] ?? 'Not provided'}\n\n'
+                                    'Preferred contact: ${d['preferredContact'] ?? 'Not provided'}\n'
+                                    'Preferred date: $date\n'
+                                    'Urgency: ${d['urgency'] ?? 'Not provided'}\n'
+                                    'Status: ${d['status'] ?? 'submitted'}',
+                                  ),
                                 ),
                               ),
                               actions: [
