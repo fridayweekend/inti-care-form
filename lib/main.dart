@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'request_store.dart';
+import 'screens/campus_content_screens.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -128,7 +129,90 @@ class IntiCareApp extends StatelessWidget {
         behavior: SnackBarBehavior.floating,
       ),
     ),
-    home: CampusRequestPage(store: store),
+    home: IntiCareHome(store: store),
+  );
+}
+
+class IntiCareHome extends StatefulWidget {
+  const IntiCareHome({super.key, this.store});
+  final RequestStore? store;
+
+  @override
+  State<IntiCareHome> createState() => _IntiCareHomeState();
+}
+
+class _IntiCareHomeState extends State<IntiCareHome> {
+  int selectedIndex = 0;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: IndexedStack(
+      index: selectedIndex,
+      children: [
+        CampusRequestPage(store: widget.store),
+        const CampusContentPage(
+          title: 'Announcements',
+          child: AnnouncementsScreen(),
+        ),
+        const CampusContentPage(
+          title: 'Campus services',
+          child: ServicesScreen(),
+        ),
+      ],
+    ),
+    bottomNavigationBar: NavigationBar(
+      selectedIndex: selectedIndex,
+      onDestinationSelected: (index) => setState(() => selectedIndex = index),
+      destinations: const [
+        NavigationDestination(
+          key: ValueKey('nav-request'),
+          icon: Icon(Icons.edit_note),
+          label: 'Request',
+        ),
+        NavigationDestination(
+          key: ValueKey('nav-announcements'),
+          icon: Icon(Icons.campaign_outlined),
+          label: 'Announcements',
+        ),
+        NavigationDestination(
+          key: ValueKey('nav-services'),
+          icon: Icon(Icons.grid_view),
+          label: 'Services',
+        ),
+      ],
+    ),
+  );
+}
+
+class CampusContentPage extends StatelessWidget {
+  const CampusContentPage({
+    super.key,
+    required this.title,
+    required this.child,
+  });
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: Text(title),
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+    ),
+    body: SafeArea(
+      child: Column(
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Text(
+              'Demonstration data — all campus information is fictional.',
+            ),
+          ),
+          Expanded(child: child),
+        ],
+      ),
+    ),
   );
 }
 
@@ -886,37 +970,44 @@ class _CampusRequestPageState extends State<CampusRequestPage> {
       backgroundColor: Colors.white,
       surfaceTintColor: Colors.transparent,
       toolbarHeight: 76,
-      title: Row(
-        children: [
-          Image.asset('assets/logo.jpg', width: 62, semanticLabel: 'INTI'),
-          const SizedBox(width: 16),
-          Container(width: 1, height: 26, color: const Color(0xFFDCE1E9)),
-          const SizedBox(width: 16),
-          const Text(
-            'Care',
-            style: TextStyle(fontWeight: FontWeight.w800, color: ink),
-          ),
-        ],
+      title: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset('assets/logo.jpg', width: 62, semanticLabel: 'INTI'),
+            const SizedBox(width: 16),
+            Container(width: 1, height: 26, color: const Color(0xFFDCE1E9)),
+            const SizedBox(width: 16),
+            const Text(
+              'Care',
+              style: TextStyle(fontWeight: FontWeight.w800, color: ink),
+            ),
+          ],
+        ),
       ),
       actions: [
-        TextButton.icon(
-          style: TextButton.styleFrom(
-            foregroundColor: accent,
-            textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        if (MediaQuery.sizeOf(context).width >= 600)
+          TextButton.icon(
+            style: TextButton.styleFrom(
+              foregroundColor: accent,
+              textStyle: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            icon: const Icon(Icons.receipt_long_outlined),
+            label: const Text('Request records'),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const RequestRecordsPage()),
+            ),
           ),
-          icon: const Icon(Icons.receipt_long_outlined),
-          label: const Text('Request records'),
-          onPressed: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const RequestRecordsPage())),
-        ),
-        IconButton(
-          tooltip: 'Request records',
-          icon: const Icon(Icons.receipt_long_outlined),
-          onPressed: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const RequestRecordsPage())),
-        ),
+        if (MediaQuery.sizeOf(context).width < 600)
+          IconButton(
+            tooltip: 'Request records',
+            icon: const Icon(Icons.receipt_long_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const RequestRecordsPage()),
+            ),
+          ),
         IconButton(
           tooltip: 'About this form',
           icon: const Icon(Icons.help_outline_rounded),

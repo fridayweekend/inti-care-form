@@ -60,3 +60,19 @@ See [customization explanation](docs/assignment-explanation.md) for the required
 Live Firebase screenshots are in docs/firebase-evidence/. Older docs/screenshots images depict simulated submissions and are excluded from the submission ZIP. Do not package build/, .tools/,
 .dart_tool/, debug logs, passwords or service-account keys.
 
+
+## Campus announcements and services
+
+The existing INTI Care app now has Request, Announcements and Services destinations.
+The request form and Firebase request records remain available. An IndexedStack
+retains form inputs, bookmark selections and scroll positions when changing tabs.
+
+Eight fictional announcements use stable IDs, scrollable cards and individual
+detail routes. Six service tiles open matching sample information. The services
+grid uses two columns below 420 logical pixels, three below 700, and four at 700
+or above. Tile heights adapt to accessibility text scaling. Bookmarks persist
+for the current app session, including detail navigation and tab changes.
+
+Implementation: lib/models/campus_content.dart, lib/data/campus_data.dart,
+lib/screens/campus_content_screens.dart and the IntiCareHome navigation in
+lib/main.dart. All added campus information is explicitly demonstration data.
